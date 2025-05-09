@@ -33,7 +33,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.akexorcist.localizationactivity.ui.LocalizationActivity;
-import com.arthenica.ffmpegkit.FFmpegKit;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
@@ -481,7 +480,6 @@ public class ActVideoTrimmer extends LocalizationActivity {
                 f.delete();
             }
             stopRepeatingTask();
-            FFmpegKit.cancel();
         } catch (Exception e) {
             LogMessage.e(Log.getStackTraceString(e));
         }
@@ -521,24 +519,10 @@ public class ActVideoTrimmer extends LocalizationActivity {
             LogMessage.v("sourcePath::" + filePath);
             videoPlayer.setPlayWhenReady(false);
             showProcessingDialog();
-            String[] complexCommand;
-            if (compressOption != null)
-                complexCommand = getCompressionCmd();
-            else if (isAccurateCut) {
-                //no changes in video quality
-                //faster trimming command and given duration will be accurate
-                complexCommand = getAccurateCmd();
-            } else {
-                //no changes in video quality
-                //fastest trimming command however, result duration
-                //will be low accurate(2-3 secs)
-                complexCommand = new String[]{"-ss", TrimmerUtils.formatCSeconds(lastMinValue),
-                        "-i", String.valueOf(filePath),
-                        "-t",
-                        TrimmerUtils.formatCSeconds(lastMaxValue - lastMinValue),
-                        "-async", "1", "-strict", "-2", "-c", "copy", outputPath};
-            }
-            execFFmpegBinary(complexCommand, true);
+            Intent intent = new Intent();
+            intent.putExtra(TrimVideo.TRIMMED_VIDEO_PATH, filePath.toString());
+            setResult(RESULT_OK, intent);
+            finish();
         } else
             Toast.makeText(this, getString(R.string.txt_smaller) + " " + TrimmerUtils.getLimitedTimeFormatted(maxToGap), Toast.LENGTH_SHORT).show();
     }
@@ -606,42 +590,42 @@ public class ActVideoTrimmer extends LocalizationActivity {
         }
     }
 
-    private void execFFmpegBinary(final String[] command, boolean retry) {
-        try {
-            FFmpegKit.executeWithArgumentsAsync(command, session -> {
-                int result = session.getReturnCode().getValue();
-                if (result == 0) {
-                    dialog.dismiss();
-                    if (showFileLocationAlert) showLocationAlert();
-                    else {
-                        Intent intent = new Intent();
-                        intent.putExtra(TrimVideo.TRIMMED_VIDEO_PATH, outputPath);
-                        setResult(RESULT_OK, intent);
-                        finish();
-                    }
-                } else if (result == 255) {
-                    LogMessage.v("Command cancelled");
-                    if (dialog.isShowing())
-                        dialog.dismiss();
-                } else {
-                    // Failed case:
-                    // line 489 command fails on some devices in
-                    // that case retrying with accurateCmt as alternative command
-                    if (retry && !isAccurateCut && compressOption == null) {
-                        File newFile = new File(outputPath);
-                        if (newFile.exists()) newFile.delete();
-                        execFFmpegBinary(getAccurateCmd(), false);
-                    } else {
-                        if (dialog.isShowing()) dialog.dismiss();
-                        runOnUiThread(() -> Toast.makeText(ActVideoTrimmer.this, "Failed to trim", Toast.LENGTH_SHORT).show());
-                    }
-                }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-    }
+//    private void execFFmpegBinary(final String[] command, boolean retry) {
+//        try {
+//            FFmpegKit.executeWithArgumentsAsync(command, session -> {
+//                int result = session.getReturnCode().getValue();
+//                if (result == 0) {
+//                    dialog.dismiss();
+//                    if (showFileLocationAlert) showLocationAlert();
+//                    else {
+//                        Intent intent = new Intent();
+//                        intent.putExtra(TrimVideo.TRIMMED_VIDEO_PATH, outputPath);
+//                        setResult(RESULT_OK, intent);
+//                        finish();
+//                    }
+//                } else if (result == 255) {
+//                    LogMessage.v("Command cancelled");
+//                    if (dialog.isShowing())
+//                        dialog.dismiss();
+//                } else {
+//                    // Failed case:
+//                    // line 489 command fails on some devices in
+//                    // that case retrying with accurateCmt as alternative command
+//                    if (retry && !isAccurateCut && compressOption == null) {
+//                        File newFile = new File(outputPath);
+//                        if (newFile.exists()) newFile.delete();
+//                        execFFmpegBinary(getAccurateCmd(), false);
+//                    } else {
+//                        if (dialog.isShowing()) dialog.dismiss();
+//                        runOnUiThread(() -> Toast.makeText(ActVideoTrimmer.this, "Failed to trim", Toast.LENGTH_SHORT).show());
+//                    }
+//                }
+//            });
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//
+//    }
 
     private void showLocationAlert() {
         // dialog to ask user to open file location in file manager or not
@@ -689,7 +673,7 @@ public class ActVideoTrimmer extends LocalizationActivity {
             dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             txtCancel.setOnClickListener(v -> {
                 dialog.dismiss();
-                FFmpegKit.cancel();
+//                FFmpegKit.cancel();
             });
             dialog.show();
         } catch (Exception e) {
